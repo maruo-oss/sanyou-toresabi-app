@@ -79,11 +79,30 @@ function getEmployeeName(employeeCode) {
   return { success: false, name: '', factory: '' };
 }
 
+// ==== ヘッダー行の確認・作成 ====
+var HEADERS = [
+  'タイムスタンプ', '社員番号', '出荷日', '出荷便', '背番号',
+  '製品型番', 'eかんばん枝番', '切断仕上No.①', '切断仕上No.②', '切断仕上No.③'
+];
+
+function ensureHeaders(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS);
+    // ヘッダー行の書式設定
+    var headerRange = sheet.getRange(1, 1, 1, HEADERS.length);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#1a2a5e');
+    headerRange.setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+}
+
 // ==== 照合データ書き込み ====
 function saveRecord(record) {
   try {
     var ss = getDataSpreadsheet();
     var sheet = ss.getSheetByName(SHEET_DATA);
+    ensureHeaders(sheet);
 
     // 二重登録チェック: 同じeかんばん枝番 + 出荷日 + 出荷便の組み合わせ
     var existing = sheet.getDataRange().getValues();
@@ -198,4 +217,18 @@ function deleteRecord(timestamp, kanbanEdaban) {
   } catch (e) {
     return { success: false, message: 'エラー: ' + e.message };
   }
+}
+
+// ==== 既存データにヘッダーを追加（1回だけ手動実行） ====
+function addHeadersToExistingSheet() {
+  var ss = getDataSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_DATA);
+  // 1行目にヘッダーを挿入
+  sheet.insertRowBefore(1);
+  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold');
+  sheet.getRange(1, 1, 1, HEADERS.length).setBackground('#1a2a5e');
+  sheet.getRange(1, 1, 1, HEADERS.length).setFontColor('#ffffff');
+  sheet.setFrozenRows(1);
+  Logger.log('ヘッダーを追加しました');
 }

@@ -106,11 +106,11 @@
   <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
 
   <script>
-    // ==== URLパラメータ取得 ====
+    // ==== パラメータ取得（localStorageから） ====
     var params = {};
-    window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
-      params[decodeURIComponent(key)] = decodeURIComponent(value);
-    });
+    try {
+      params = JSON.parse(localStorage.getItem('kanban_params') || '{}');
+    } catch(e) {}
 
     var employeeCode = params.employeeCode || '';
     var shippingDate = params.shippingDate || '';

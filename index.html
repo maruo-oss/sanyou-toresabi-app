@@ -118,33 +118,25 @@
 
     // 読み取り画面へ遷移
     document.getElementById('btnScanner').addEventListener('click', function() {
-      var params = {
+      // localStorageにパラメータを保存して画面遷移
+      localStorage.setItem('kanban_params', JSON.stringify({
         employeeCode: document.getElementById('employeeCode').value,
         employeeName: document.getElementById('employeeName').textContent,
         shippingDate: document.getElementById('shippingDate').value,
         shippingBin: document.getElementById('shippingBin').value,
         led: document.getElementById('ledSetting').value
-      };
-      var url = '<?!= getScriptUrl() ?>' + '?page=scanner&' + encodeParams(params);
-      window.top.location.href = url;
+      }));
+      window.top.location.href = '<?!= getScriptUrl() ?>' + '?page=scanner';
     });
 
     // リスト検索画面へ遷移
     document.getElementById('btnList').addEventListener('click', function() {
-      var params = {
+      localStorage.setItem('kanban_params', JSON.stringify({
         shippingDate: document.getElementById('shippingDate').value,
         shippingBin: document.getElementById('shippingBin').value
-      };
-      var url = '<?!= getScriptUrl() ?>' + '?page=list&' + encodeParams(params);
-      window.top.location.href = url;
+      }));
+      window.top.location.href = '<?!= getScriptUrl() ?>' + '?page=list';
     });
-
-    // パラメータをURLクエリ文字列に変換
-    function encodeParams(obj) {
-      return Object.keys(obj).map(function(key) {
-        return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]);
-      }).join('&');
-    }
   </script>
 
 </body>

@@ -49,11 +49,11 @@
   </div>
 
   <script>
-    // URLパラメータから初期値設定
+    // localStorageからパラメータ取得
     var params = {};
-    window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
-      params[decodeURIComponent(key)] = decodeURIComponent(value);
-    });
+    try {
+      params = JSON.parse(localStorage.getItem('kanban_params') || '{}');
+    } catch(e) {}
 
     if (params.shippingDate) {
       document.getElementById('filterDate').value = params.shippingDate;
