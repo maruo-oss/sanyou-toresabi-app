@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>かんばん照合アプリ - 操作マニュアル</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+    .header {
+      background: #1a2a5e;
+      color: #fff;
+      text-align: center;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h2 {
+      background: #1a2a5e;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 16px;
+      margin: 24px 0 12px;
+    }
+    h3 {
+      color: #1a2a5e;
+      font-size: 15px;
+      margin: 16px 0 8px;
+      padding-left: 12px;
+      border-left: 4px solid #1a2a5e;
+    }
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .step-num {
+      background: #1a2a5e;
+      color: #fff;
+      min-width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .step-content {
+      flex: 1;
+    }
+    .step-content strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+    .step-content small {
+      color: #666;
+    }
+    .badge-ok {
+      display: inline-block;
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .badge-ng {
+      display: inline-block;
+      background: #ffebee;
+      color: #d32f2f;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .badge-info {
+      display: inline-block;
+      background: #e3f2fd;
+      color: #1565c0;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .warning {
+      background: #fff3e0;
+      border-left: 4px solid #f57c00;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .tip {
+      background: #e8f5e9;
+      border-left: 4px solid #2e7d32;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    th {
+      background: #1a2a5e;
+      color: #fff;
+      padding: 8px;
+      text-align: left;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .toc {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .toc a {
+      color: #1a2a5e;
+      text-decoration: none;
+      display: block;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .toc a:last-child { border-bottom: none; }
+    .toc a:hover { text-decoration: underline; }
+    .flow-box {
+      background: #fff;
+      border: 2px solid #1a2a5e;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      margin: 8px 0;
+      font-weight: bold;
+    }
+    .flow-arrow {
+      text-align: center;
+      font-size: 20px;
+      color: #1a2a5e;
+      margin: 4px 0;
+    }
+    .screenshot-placeholder {
+      background: #e0e0e0;
+      border-radius: 8px;
+      padding: 40px 16px;
+      text-align: center;
+      color: #888;
+      font-size: 13px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">かんばん照合アプリ 操作マニュアル</div>
+
+  <div class="container">
+
+    <!-- 目次 -->
+    <div class="toc">
+      <strong>目次</strong>
+      <a href="#overview">1. アプリの概要</a>
+      <a href="#flow">2. 全体の操作フロー</a>
+      <a href="#screen1">3. トップ画面の操作</a>
+      <a href="#screen2">4. QR読み取り・照合の操作</a>
+      <a href="#screen3">5. リスト検索・集計画面</a>
+      <a href="#trouble">6. よくあるトラブルと対処法</a>
+      <a href="#setup">7. 初期設定（管理者向け）</a>
+    </div>
+
+    <!-- 1. 概要 -->
+    <h2 id="overview">1. アプリの概要</h2>
+    <div class="card">
+      <p>このアプリは、<strong>eかんばん</strong>と<strong>切断仕上票</strong>のQRコードを照合し、製品の付け間違い・出荷間違いを防止するためのツールです。</p>
+      <br>
+      <table>
+        <tr><th>項目</th><th>内容</th></tr>
+        <tr><td>使用デバイス</td><td>iPhone（Safari）</td></tr>
+        <tr><td>照合方法</td><td>QRコード撮影による自動照合</td></tr>
+        <tr><td>データ保存先</td><td>Googleスプレッドシート</td></tr>
+      </table>
+    </div>
+
+    <!-- 2. 全体フロー -->
+    <h2 id="flow">2. 全体の操作フロー</h2>
+    <div class="card">
+      <div class="flow-box">社員コード・出荷日・出荷便を設定</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">「eかんばんを読み取る」をタップ</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">eかんばんのQRコードを撮影</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">「切断仕上票を読み取る」をタップ</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">切断仕上票のQRコードを撮影</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">
+        照合結果を確認<br>
+        <span class="badge-ok">OK → 自動保存</span>&nbsp;
+        <span class="badge-ng">NG → 保存しない</span>
+      </div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">次のeかんばんへ（繰り返し）</div>
+      <div class="flow-arrow">&#9660;</div>
+      <div class="flow-box">リスト検索で集計結果を確認</div>
+    </div>
+
+    <!-- 3. トップ画面 -->
+    <h2 id="screen1">3. トップ画面の操作</h2>
+    <div class="card">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>社員コードを入力</strong>
+          <small>テンキーで自分の社員番号を入力します。氏名と工場が自動で表示されます。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>出荷日を選択</strong>
+          <small>カレンダーから出荷日を選びます。デフォルトは当日です。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>出荷便を選択</strong>
+          <small>T1 / T2 / T3 / T4 から選びます。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>「読み取り画面」をタップ</strong>
+          <small>QRコード読み取り画面に移動します。社員コードが正しく入力されていないとボタンが押せません。</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="warning">
+      <strong>注意：</strong>社員コードを入力しても氏名が「該当なし」と表示される場合は、社員マスタに登録されていない可能性があります。管理者に確認してください。
+    </div>
+
+    <!-- 4. QR読み取り -->
+    <h2 id="screen2">4. QR読み取り・照合の操作</h2>
+
+    <h3>eかんばんの読み取り</h3>
+    <div class="card">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>「eかんばんを読み取る」ボタンをタップ</strong>
+          <small>iPhoneのカメラが起動します。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>eかんばんのQRコードを撮影</strong>
+          <small>QRコードがはっきり写るようにカメラを向けてシャッターを押します。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>読み取り結果を確認</strong>
+          <small>「出荷かんばん」の欄に製品型番・背番号・枝番が表示されれば成功です。</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">
+      <strong>コツ：</strong>QRコードにカメラを近づけ、QRコード全体がフレームに収まるように撮影してください。
+    </div>
+
+    <h3>切断仕上票の読み取り</h3>
+    <div class="card">
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>「切断仕上票を読み取る」ボタンをタップ</strong>
+          <small>eかんばんの読み取り成功後に表示されるボタンです。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <strong>切断仕上票のQRコードを撮影</strong>
+          <small>切断仕上票のQRコードを撮影します。</small>
+        </div>
+      </div>
+    </div>
+
+    <h3>照合結果</h3>
+    <div class="card">
+      <p><span class="badge-ok">照合OK</span> の場合：</p>
+      <ul style="margin: 8px 0 16px 20px;">
+        <li>画面に「照合OK」と緑色で表示されます</li>
+        <li>データが<strong>自動でスプレッドシートに保存</strong>されます</li>
+        <li>「保存しました」のメッセージが表示されます</li>
+        <li>次のeかんばんの読み取りに進めます</li>
+      </ul>
+      <p><span class="badge-ng">照合NG</span> の場合：</p>
+      <ul style="margin: 8px 0 0 20px;">
+        <li>画面に「照合NG」と赤色で表示されます</li>
+        <li>データは<strong>保存されません</strong></li>
+        <li>eかんばんと切断仕上票の組み合わせが正しいか確認してください</li>
+      </ul>
+    </div>
+
+    <div class="warning">
+      <strong>照合NGが出たら：</strong>eかんばんと切断仕上票が正しいペアかどうか、現物を確認してください。間違ったeかんばんを設置していないか注意してください。
+    </div>
+
+    <!-- 5. リスト検索 -->
+    <h2 id="screen3">5. リスト検索・集計画面</h2>
+    <div class="card">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>出荷日と出荷便を選択して「検索」をタップ</strong>
+          <small>該当するデータが表示されます。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>集計結果を確認</strong>
+          <small>背番号ごとのケース数合計が表示されます。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>客先納品書と照合</strong>
+          <small>集計結果の数量と客先納品書の数字を照らし合わせ、差異がないか確認します。</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">
+      <strong>ポイント：</strong>出荷前に必ずこの画面で集計結果を確認し、客先納品書の数量と一致していることを確かめてください。
+    </div>
+
+    <!-- 6. トラブルシューティング -->
+    <h2 id="trouble">6. よくあるトラブルと対処法</h2>
+
+    <div class="card">
+      <table>
+        <tr><th style="width:40%">症状</th><th>対処法</th></tr>
+        <tr>
+          <td>カメラが起動しない</td>
+          <td>iPhoneの「設定」→「Safari」→「カメラ」で、アクセスを「許可」に変更してください。</td>
+        </tr>
+        <tr>
+          <td>QRコードを検出できない</td>
+          <td>QRコードに近づいて、QRコード全体がフレームに収まるように撮影してください。暗い場所では照明を当ててください。</td>
+        </tr>
+        <tr>
+          <td>社員コードで氏名が出ない</td>
+          <td>社員マスタに登録されていない可能性があります。管理者に連絡してください。</td>
+        </tr>
+        <tr>
+          <td>「このeかんばんは既に登録済みです」</td>
+          <td>同じeかんばん（同一枝番・出荷日・出荷便）は2回保存できません。誤登録の場合は管理者に削除を依頼してください。</td>
+        </tr>
+        <tr>
+          <td>保存に失敗する</td>
+          <td>インターネット接続を確認してください。Wi-Fiが不安定な場合は、電波の良い場所で再度お試しください。</td>
+        </tr>
+        <tr>
+          <td>画面が真っ白になる</td>
+          <td>ブラウザを閉じて、もう一度アプリのURLを開き直してください。</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 7. 初期設定 -->
+    <h2 id="setup">7. 初期設定（管理者向け）</h2>
+    <div class="card">
+      <h3 style="border:none; padding:0; margin:0 0 12px;">スプレッドシートの準備</h3>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>照合データ用スプレッドシートを作成</strong>
+          <small>「照合データ」という名前のシートを作成します。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>Apps Scriptを開く</strong>
+          <small>「拡張機能」→「Apps Script」でスクリプトエディタを開きます。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>コードファイルを作成</strong>
+          <small>Code.gs, BigQuerySync.gs, index.html, scanner.html, list.html, css.html を作成し、各コードを貼り付けます。HTMLファイルは「+」→「HTML」で追加します。</small>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>スクリプトプロパティを設定</strong>
+          <small>「プロジェクトの設定（⚙）」→「スクリプトプロパティ」に以下を追加します。</small>
+        </div>
+      </div>
+
+      <table>
+        <tr><th>プロパティ名</th><th>値</th></tr>
+        <tr><td>EMPLOYEE_SPREADSHEET_ID</td><td>社員マスタのスプレッドシートID</td></tr>
+        <tr><td>EMPLOYEE_SHEET_NAME</td><td>シート名（省略時:「社員マスタ」）</td></tr>
+      </table>
+      <br>
+      <small>※スプレッドシートIDは、URLの <code>/d/</code> と <code>/edit</code> の間の文字列です。</small>
+
+      <div class="step" style="margin-top:16px;">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <strong>Webアプリとしてデプロイ</strong>
+          <small>「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」を選択。「アクセスできるユーザー」を適切に設定して「デプロイ」します。</small>
+        </div>
+      </div>
+
+      <h3 style="border:none; padding:0; margin:16px 0 12px;">社員マスタの構成</h3>
+      <table>
+        <tr><th>A列</th><th>B列</th><th>C列</th></tr>
+        <tr><td>社員番号</td><td>氏名</td><td>工場</td></tr>
+        <tr><td>192</td><td>坂本 智哉</td><td>八尾工場</td></tr>
+        <tr><td>...</td><td>...</td><td>...</td></tr>
+      </table>
+
+      <h3 style="border:none; padding:0; margin:16px 0 12px;">BigQuery連携（オプション）</h3>
+      <p style="font-size:14px;">BigQuerySync.gs のコメントに記載の手順に従って設定してください。5分間隔で自動的にスプレッドシートからBigQueryへデータが転送されます。</p>
+    </div>
+
+    <div style="text-align:center; padding:24px 0; color:#999; font-size:12px;">
+      かんばん照合アプリ 操作マニュアル v1.0<br>
+      山陽金属鋼業株式会社
+    </div>
+
+  </div>
+
+</body>
+</html>
