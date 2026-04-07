@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <?!= include('css') ?>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <div class="header">かんばん照合アプリ</div>
+
+  <div class="container">
+    <!-- セクションタイトル -->
+    <div class="section-title">確認者登録</div>
+
+    <!-- 社員コード入力 -->
+    <div class="form-group">
+      <label>社員コード入力</label>
+      <input type="tel" id="employeeCode" placeholder="社員番号" inputmode="numeric" pattern="[0-9]*">
+    </div>
+
+    <!-- 氏名表示 -->
+    <div class="form-group">
+      <label>氏名</label>
+      <span id="employeeName" class="form-value">-</span>
+    </div>
+
+    <!-- 工場表示 -->
+    <div class="form-group">
+      <label>工場</label>
+      <span id="employeeFactory" class="form-value">-</span>
+    </div>
+
+    <!-- 出荷日選択 -->
+    <div class="form-group">
+      <label>出荷日選択</label>
+      <input type="date" id="shippingDate">
+    </div>
+
+    <!-- 出荷便選択 -->
+    <div class="form-group">
+      <label>出荷便選択</label>
+      <select id="shippingBin">
+        <option value="T1">T1</option>
+        <option value="T2">T2</option>
+        <option value="T3">T3</option>
+        <option value="T4">T4</option>
+      </select>
+    </div>
+
+    <!-- LED -->
+    <div class="form-group">
+      <label>LED</label>
+      <select id="ledSetting">
+        <option value="on">ON</option>
+        <option value="off">OFF</option>
+      </select>
+    </div>
+
+    <!-- 読み取り画面ボタン -->
+    <button class="btn btn-primary" id="btnScanner" disabled>
+      <span>&#128247;</span> 読み取り画面
+    </button>
+
+    <!-- リスト検索ボタン -->
+    <button class="btn btn-secondary" id="btnList">
+      <span>&#128269;</span> リスト検索
+    </button>
+  </div>
+
+  <script>
+    // 今日の日付をデフォルト設定
+    (function() {
+      var today = new Date();
+      var yyyy = today.getFullYear();
+      var mm = String(today.getMonth() + 1).padStart(2, '0');
+      var dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('shippingDate').value = yyyy + '-' + mm + '-' + dd;
+    })();
+
+    // 社員コード入力 → 氏名検索
+    var searchTimer = null;
+    document.getElementById('employeeCode').addEventListener('input', function() {
+      var code = this.value.trim();
+      var nameEl = document.getElementById('employeeName');
+      var btnScanner = document.getElementById('btnScanner');
+
+      if (!code) {
+        nameEl.textContent = '-';
+        btnScanner.disabled = true;
+        return;
+      }
+
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function() {
+        nameEl.textContent = '検索中...';
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (result.success) {
+              nameEl.textContent = result.name;
+              document.getElementById('employeeFactory').textContent = result.factory || '-';
+              btnScanner.disabled = false;
+            } else {
+              nameEl.textContent = '該当なし';
+              document.getElementById('employeeFactory').textContent = '-';
+              btnScanner.disabled = true;
+            }
+          })
+          .withFailureHandler(function() {
+            nameEl.textContent = 'エラー';
+            document.getElementById('employeeFactory').textContent = '-';
+            btnScanner.disabled = true;
+          })
+          .getEmployeeName(code);
+      }, 500);
+    });
+
+    // 読み取り画面へ遷移
+    document.getElementById('btnScanner').addEventListener('click', function() {
+      var params = {
+        employeeCode: document.getElementById('employeeCode').value,
+        employeeName: document.getElementById('employeeName').textContent,
+        shippingDate: document.getElementById('shippingDate').value,
+        shippingBin: document.getElementById('shippingBin').value,
+        led: document.getElementById('ledSetting').value
+      };
+      var url = '<?!= getScriptUrl() ?>' + '?page=scanner&' + encodeParams(params);
+      window.top.location.href = url;
+    });
+
+    // リスト検索画面へ遷移
+    document.getElementById('btnList').addEventListener('click', function() {
+      var params = {
+        shippingDate: document.getElementById('shippingDate').value,
+        shippingBin: document.getElementById('shippingBin').value
+      };
+      var url = '<?!= getScriptUrl() ?>' + '?page=list&' + encodeParams(params);
+      window.top.location.href = url;
+    });
+
+    // パラメータをURLクエリ文字列に変換
+    function encodeParams(obj) {
+      return Object.keys(obj).map(function(key) {
+        return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]);
+      }).join('&');
+    }
+  </script>
+
+</body>
+</html>

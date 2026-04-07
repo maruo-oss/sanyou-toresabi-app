@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <?!= include('css') ?>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <div class="header">
+    <span>リスト検索</span>
+    <div class="header-right">
+      <a href="<?!= getScriptUrl() ?>" class="header-icon">&#127968;</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- フィルタ -->
+    <div class="form-group">
+      <label>出荷日</label>
+      <input type="date" id="filterDate">
+    </div>
+    <div class="form-group">
+      <label>出荷便</label>
+      <select id="filterBin">
+        <option value="">すべて</option>
+        <option value="T1">T1</option>
+        <option value="T2">T2</option>
+        <option value="T3">T3</option>
+        <option value="T4">T4</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btnSearch">検索</button>
+
+    <!-- ローディング -->
+    <div class="loading" id="loadingIndicator">
+      <div class="spinner"></div>
+      <div>読み込み中...</div>
+    </div>
+
+    <!-- 集計テーブル -->
+    <div class="section-title mt-16">集計結果</div>
+    <div id="summaryArea"></div>
+
+    <!-- 詳細テーブル -->
+    <div class="section-title mt-16">詳細データ</div>
+    <div id="detailArea"></div>
+  </div>
+
+  <script>
+    // URLパラメータから初期値設定
+    var params = {};
+    window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
+      params[decodeURIComponent(key)] = decodeURIComponent(value);
+    });
+
+    if (params.shippingDate) {
+      document.getElementById('filterDate').value = params.shippingDate;
+    } else {
+      var today = new Date();
+      var yyyy = today.getFullYear();
+      var mm = String(today.getMonth() + 1).padStart(2, '0');
+      var dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('filterDate').value = yyyy + '-' + mm + '-' + dd;
+    }
+
+    if (params.shippingBin) {
+      document.getElementById('filterBin').value = params.shippingBin;
+    }
+
+    // 検索実行
+    document.getElementById('btnSearch').addEventListener('click', doSearch);
+
+    function doSearch() {
+      var date = document.getElementById('filterDate').value;
+      var bin = document.getElementById('filterBin').value;
+
+      document.getElementById('loadingIndicator').classList.add('active');
+      document.getElementById('summaryArea').innerHTML = '';
+      document.getElementById('detailArea').innerHTML = '';
+
+      // 集計と詳細を並行取得
+      var completed = 0;
+      var summaryResult = null;
+      var detailResult = null;
+
+      function checkDone() {
+        completed++;
+        if (completed < 2) return;
+        document.getElementById('loadingIndicator').classList.remove('active');
+        renderSummary(summaryResult);
+        renderDetail(detailResult);
+      }
+
+      google.script.run
+        .withSuccessHandler(function(result) { summaryResult = result; checkDone(); })
+        .withFailureHandler(function(err) { summaryResult = { success: false, message: err.message }; checkDone(); })
+        .getSummary(date, bin);
+
+      google.script.run
+        .withSuccessHandler(function(result) { detailResult = result; checkDone(); })
+        .withFailureHandler(function(err) { detailResult = { success: false, message: err.message }; checkDone(); })
+        .getRecords(date, bin);
+    }
+
+    // 集計テーブル描画
+    function renderSummary(result) {
+      var area = document.getElementById('summaryArea');
+
+      if (!result || !result.success) {
+        area.innerHTML = '<div class="result-box error">データの取得に失敗しました</div>';
+        return;
+      }
+
+      if (result.summary.length === 0) {
+        area.innerHTML = '<div class="result-box">データがありません</div>';
+        return;
+      }
+
+      var html = '<table class="data-table">';
+      html += '<thead><tr><th>背番号</th><th>製品型番</th><th>ケース数</th></tr></thead>';
+      html += '<tbody>';
+
+      result.summary.forEach(function(row) {
+        html += '<tr>';
+        html += '<td>' + row.sebangoNo + '</td>';
+        html += '<td style="font-size:12px;">' + row.productModel + '</td>';
+        html += '<td>' + row.count + '</td>';
+        html += '</tr>';
+      });
+
+      // 合計行
+      html += '<tr class="total-row">';
+      html += '<td colspan="2">合計</td>';
+      html += '<td>' + result.totalCount + '</td>';
+      html += '</tr>';
+
+      html += '</tbody></table>';
+      area.innerHTML = html;
+    }
+
+    // 詳細テーブル描画
+    function renderDetail(result) {
+      var area = document.getElementById('detailArea');
+
+      if (!result || !result.success) {
+        area.innerHTML = '<div class="result-box error">データの取得に失敗しました</div>';
+        return;
+      }
+
+      if (result.records.length === 0) {
+        area.innerHTML = '<div class="result-box">データがありません</div>';
+        return;
+      }
+
+      var html = '<table class="data-table">';
+      html += '<thead><tr><th>時刻</th><th>背番号</th><th>型番</th><th>枝番</th><th>切断No.</th></tr></thead>';
+      html += '<tbody>';
+
+      result.records.forEach(function(row) {
+        var time = row.timestamp.split(' ')[1] || '';
+        var setsudanNos = [row.setsudanNo1, row.setsudanNo2, row.setsudanNo3].filter(function(n) { return n; }).join(', ');
+        html += '<tr>';
+        html += '<td style="font-size:12px;">' + time + '</td>';
+        html += '<td>' + row.sebangoNo + '</td>';
+        html += '<td style="font-size:11px;">' + row.productModel + '</td>';
+        html += '<td>' + row.kanbanEdaban + '</td>';
+        html += '<td style="font-size:11px;">' + setsudanNos + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      area.innerHTML = html;
+    }
+
+    // 初期検索
+    doSearch();
+  </script>
+
+</body>
+</html>
