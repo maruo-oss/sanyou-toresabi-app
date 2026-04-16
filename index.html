@@ -101,6 +101,10 @@
               nameEl.textContent = result.name;
               document.getElementById('employeeFactory').textContent = result.factory || '-';
               btnScanner.disabled = false;
+            } else if (result.resigned) {
+              nameEl.textContent = '退社済み';
+              document.getElementById('employeeFactory').textContent = '-';
+              btnScanner.disabled = true;
             } else {
               nameEl.textContent = '該当なし';
               document.getElementById('employeeFactory').textContent = '-';

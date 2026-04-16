@@ -70,9 +70,13 @@ function getEmployeeName(employeeCode) {
   var sheet = ss.getSheetByName(config.sheetName);
   var data = sheet.getDataRange().getValues();
 
-  // A列: 社員番号, B列: 氏名, C列: 工場
+  // A列: 社員番号, B列: 氏名, C列: 工場, N列(index 13): 退社フラグ
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(employeeCode)) {
+      var resigned = data[i][13];
+      if (resigned === true || String(resigned).toLowerCase() === 'true') {
+        return { success: false, name: '', factory: '', resigned: true };
+      }
       return { success: true, name: data[i][1], factory: data[i][2] || '' };
     }
   }

@@ -357,6 +357,13 @@
 
     // ==== eかんばん読み取り完了 ====
     function onKanbanScanned(rawData) {
+      // 切断仕上票の誤読チェック
+      var setsudanCheck = parseSetsudanQR(rawData);
+      if (setsudanCheck && setsudanCheck.productModel) {
+        showAlert('\u26A0', 'eかんばんではありません', '切断仕上票のQRコードが読み取られました。\neかんばんのQRコードを撮影してください。');
+        return;
+      }
+
       var data = parseKanbanQR(rawData);
       if (!data || !data.productModel) {
         document.getElementById('resultKanban').innerHTML = 'QRコードの解析に失敗しました';
@@ -367,6 +374,9 @@
 
       scanState.kanbanData = data;
       scanState.requiredCount = data.requiredCount || 1;
+
+      // QR生データをデバッグ表示
+      showDebug(['[eかんばん QR生データ]', rawData]);
 
       document.getElementById('resultKanban').innerHTML =
         '<strong>' + data.productModel + '</strong><br>' +
@@ -383,11 +393,21 @@
 
     // ==== 切断仕上票読み取り完了 ====
     function onSetsudanScanned(rawData) {
+      // eかんばんの誤読チェック（切断仕上票として解析できず、先頭2-3文字目が数値ならeかんばんの可能性）
+      var countStr = rawData.trim().substring(1, 3);
+      if (!isNaN(parseInt(countStr, 10)) && !parseSetsudanQR(rawData)) {
+        showAlert('\u26A0', '切断仕上票ではありません', 'eかんばんのQRコードが読み取られました。\n切断仕上票のQRコードを撮影してください。');
+        return;
+      }
+
       var data = parseSetsudanQR(rawData);
       if (!data || !data.productModel) {
         showAlert('\u26A0', '切断仕上票を認識できません', '正しい切断仕上票のQRコードを撮影してください');
         return;
       }
+
+      // QR生データをデバッグ表示
+      showDebug(['[切断仕上票 QR生データ ' + (scanState.scanCount + 1) + '枚目]', rawData]);
 
       scanState.scanCount++;
       scanState.setsudanList.push(data);
@@ -430,6 +450,29 @@
       var matchResultText = document.getElementById('matchResultText');
       matchResultEl.classList.remove('hidden');
 
+      // 切断仕上No.重複チェック（数値比較）
+      if (allMatch) {
+        var setsudanNumbers = [];
+        var duplicateNo = null;
+        for (var j = 0; j < scanState.setsudanList.length; j++) {
+          var num = parseInt(scanState.setsudanList[j].setsudanNo, 10);
+          if (setsudanNumbers.indexOf(num) >= 0) {
+            duplicateNo = num;
+            break;
+          }
+          setsudanNumbers.push(num);
+        }
+        if (duplicateNo !== null) {
+          matchResultBox.className = 'result-box error';
+          matchResultText.innerHTML = '<strong style="font-size:18px;">\u274C 切断仕上No.重複</strong><br>切断仕上No. ' + duplicateNo + ' が重複しています';
+          document.getElementById('dispStatus').textContent = '切断仕上No.重複エラー';
+          showAlert('\u274C', '切断仕上No.重複', '同じ切断仕上票が複数回読み取られています。\n重複No: ' + duplicateNo);
+          document.getElementById('nextScanArea').classList.remove('hidden');
+          scanState.phase = 'idle';
+          return;
+        }
+      }
+
       if (allMatch) {
         matchResultBox.className = 'result-box success';
         matchResultText.innerHTML = '<strong style="font-size:18px;">\u2705 照合OK</strong><br>製品型番: ' + kanbanModel;
@@ -445,7 +488,6 @@
         showAlert('\u274C', '照合NGです！', 'eかんばんと切断仕上票の製品型番が一致しません。\neかんばん: ' + kanbanModel);
 
         document.getElementById('nextScanArea').classList.remove('hidden');
-        document.getElementById('kanbanScanArea').classList.remove('hidden');
         scanState.phase = 'idle';
       }
     }
@@ -476,7 +518,6 @@
             document.getElementById('dispStatus').textContent = '保存完了';
             showAlert('\u2705', '保存しました', '製品型番: ' + record.productModel + '\n背番号: ' + record.sebangoNo);
             document.getElementById('nextScanArea').classList.remove('hidden');
-            document.getElementById('kanbanScanArea').classList.remove('hidden');
           } else {
             document.getElementById('dispStatus').textContent = '保存エラー';
             showAlert('\u26A0', '保存に失敗しました', result.message);
