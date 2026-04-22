@@ -20,10 +20,13 @@
 
   <!-- ヘッダー -->
   <div class="header">
+    <div class="header-left">
+      <a href="javascript:history.back()" class="header-icon" title="前の画面に戻る">&#9664;</a>
+    </div>
     <span>QRコード読み取り</span>
     <div class="header-right">
-      <a href="<?!= getScriptUrl() ?>?page=list" class="header-icon">&#128269;</a>
-      <a href="<?!= getScriptUrl() ?>" class="header-icon">&#127968;</a>
+      <a href="<?!= getScriptUrl() ?>?page=list" class="header-icon" title="リスト検索">&#128269;</a>
+      <a href="<?!= getScriptUrl() ?>" class="header-icon" title="ホーム">&#127968;</a>
     </div>
   </div>
 
@@ -32,6 +35,7 @@
     出荷日 <strong id="dispDate">-</strong>&nbsp;
     出荷便 <strong id="dispBin">-</strong>&nbsp;
     <span id="dispStatus">選択中</span>
+    <span style="margin-left:8px; color:#ff0; font-weight:bold;">[v写真版]</span>
   </div>
 
   <div class="container">
@@ -151,13 +155,24 @@
         }
       }
 
+      // 収容数抽出：2番目の空白区切りパートの末尾4文字のうち前2文字
+      // 例: "00000006006" → 末尾4文字 "6006" → 前2文字 "60" = 収容数60
+      var shuyousu = 0;
+      if (parts.length >= 2) {
+        var infoCode = parts[1];
+        if (infoCode.length >= 4 && /^\d+$/.test(infoCode)) {
+          shuyousu = parseInt(infoCode.substring(infoCode.length - 4, infoCode.length - 2), 10);
+        }
+      }
+
       return {
         raw: raw,
         type: type,
         requiredCount: isNaN(count) ? 1 : count,
         productModel: productModel,
         sebangoNo: sebangoNo,
-        edaban: edaban
+        edaban: edaban,
+        shuyousu: isNaN(shuyousu) ? 0 : shuyousu
       };
     }
 
@@ -187,13 +202,25 @@
         }
       }
 
+      // 本数抽出：最後の長い数字ブロックの6-11文字目（2番目の6桁グループ）が本数
+      // 例: "0007020000602001000251000001" → 000702(寸法) + 000060(本数) + 2001(担当者) + ...
+      var honsu = 0;
+      var digitBlocks = remaining.match(/\d{12,}/g);
+      if (digitBlocks && digitBlocks.length > 0) {
+        var lastBlock = digitBlocks[digitBlocks.length - 1];
+        if (lastBlock.length >= 12) {
+          honsu = parseInt(lastBlock.substring(6, 12), 10);
+        }
+      }
+
       return {
         raw: raw,
         productModel: productModel,
         date: date,
         shiageNo: shiageNo,
         setsudanNo: setsudanNo,
-        sebangoNo: sebangoNo
+        sebangoNo: sebangoNo,
+        honsu: isNaN(honsu) ? 0 : honsu
       };
     }
 
@@ -380,7 +407,7 @@
 
       document.getElementById('resultKanban').innerHTML =
         '<strong>' + data.productModel + '</strong><br>' +
-        '<small>背番号: ' + data.sebangoNo + ' / 枝番: ' + data.edaban + ' / 個数: ' + data.requiredCount + '</small>';
+        '<small>背番号: ' + data.sebangoNo + ' / 枝番: ' + data.edaban + ' / 個数: ' + data.requiredCount + ' / 収容数: ' + data.shuyousu + '</small>';
       document.getElementById('resultKanban').className = 'result-box success';
 
       // eかんばんボタンを隠し、切断仕上票ボタンを表示
@@ -406,6 +433,16 @@
         return;
       }
 
+      // 事前重複チェック（既存の切断仕上Noと同じなら無効にし、再スキャンを促す）
+      var newNum = parseInt(data.setsudanNo, 10);
+      for (var k = 0; k < scanState.setsudanList.length; k++) {
+        if (parseInt(scanState.setsudanList[k].setsudanNo, 10) === newNum) {
+          showAlert('⚠', '切断仕上No.重複',
+            '同じ切断仕上票が既に読み取られています。\n重複No: ' + newNum + '\n別の切断仕上票を読み取ってください。');
+          return;
+        }
+      }
+
       // QR生データをデバッグ表示
       showDebug(['[切断仕上票 QR生データ ' + (scanState.scanCount + 1) + '枚目]', rawData]);
 
@@ -425,12 +462,17 @@
 
       targetEl.innerHTML =
         '<strong>' + data.productModel + '</strong><br>' +
-        '<small>切断NO: ' + data.setsudanNo + ' / 仕上NO: ' + data.shiageNo + '</small>';
+        '<small>切断NO: ' + data.setsudanNo + ' / 仕上NO: ' + data.shiageNo + ' / 本数: ' + data.honsu + '</small>';
       targetEl.className = 'result-box success';
 
-      // 1枚読み取り完了 → 即照合
-      document.getElementById('setsudanScanArea').classList.add('hidden');
-      performMatching();
+      // 必要枚数に達したら照合、未達なら次の切断仕上票スキャンへ
+      if (scanState.scanCount >= scanState.requiredCount) {
+        document.getElementById('setsudanScanArea').classList.add('hidden');
+        performMatching();
+      } else {
+        document.getElementById('dispStatus').textContent = '切断仕上票 ' + scanState.scanCount + '/' + scanState.requiredCount + ' 読み取り済み → 次の切断仕上票を読み取ってください';
+        document.getElementById('setsudanScanArea').classList.remove('hidden');
+      }
     }
 
     // ==== 照合ロジック ====
@@ -450,27 +492,29 @@
       var matchResultText = document.getElementById('matchResultText');
       matchResultEl.classList.remove('hidden');
 
-      // 切断仕上No.重複チェック（数値比較）
-      if (allMatch) {
-        var setsudanNumbers = [];
-        var duplicateNo = null;
-        for (var j = 0; j < scanState.setsudanList.length; j++) {
-          var num = parseInt(scanState.setsudanList[j].setsudanNo, 10);
-          if (setsudanNumbers.indexOf(num) >= 0) {
-            duplicateNo = num;
+      // 収容数と本数の一致チェック（全ての切断仕上票の本数が収容数と一致する必要あり）
+      var shuyousu = scanState.kanbanData.shuyousu;
+      var quantityMismatch = false;
+      var mismatchDetail = '';
+      if (shuyousu > 0 && allMatch) {
+        for (var q = 0; q < scanState.setsudanList.length; q++) {
+          var h = scanState.setsudanList[q].honsu;
+          if (h > 0 && h !== shuyousu) {
+            quantityMismatch = true;
+            mismatchDetail = '収容数: ' + shuyousu + ' / 本数: ' + h + '（切断仕上票 ' + (q + 1) + '枚目）';
             break;
           }
-          setsudanNumbers.push(num);
         }
-        if (duplicateNo !== null) {
-          matchResultBox.className = 'result-box error';
-          matchResultText.innerHTML = '<strong style="font-size:18px;">\u274C 切断仕上No.重複</strong><br>切断仕上No. ' + duplicateNo + ' が重複しています';
-          document.getElementById('dispStatus').textContent = '切断仕上No.重複エラー';
-          showAlert('\u274C', '切断仕上No.重複', '同じ切断仕上票が複数回読み取られています。\n重複No: ' + duplicateNo);
-          document.getElementById('nextScanArea').classList.remove('hidden');
-          scanState.phase = 'idle';
-          return;
-        }
+      }
+
+      if (quantityMismatch) {
+        matchResultBox.className = 'result-box error';
+        matchResultText.innerHTML = '<strong style="font-size:18px;">❌ 数量不一致</strong><br>' + mismatchDetail;
+        document.getElementById('dispStatus').textContent = '数量不一致エラー';
+        showAlert('❌', '数量不一致', '収容数と本数が一致しません。\n' + mismatchDetail);
+        document.getElementById('nextScanArea').classList.remove('hidden');
+        scanState.phase = 'idle';
+        return;
       }
 
       if (allMatch) {

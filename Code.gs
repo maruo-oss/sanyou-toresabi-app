@@ -70,7 +70,7 @@ function getEmployeeName(employeeCode) {
   var sheet = ss.getSheetByName(config.sheetName);
   var data = sheet.getDataRange().getValues();
 
-  // A列: 社員番号, B列: 氏名, C列: 工場, N列(index 13): 退社フラグ
+  // A列: 社員番号, B列: 氏名, C列: 工場, N列(index 13): 退社フラグ（TRUE=退社, FALSE=在籍）
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(employeeCode)) {
       var resigned = data[i][13];
@@ -200,6 +200,35 @@ function getSummary(shippingDate, shippingBin) {
     return { success: true, summary: summaryArray, totalCount: result.records.length };
   } catch (e) {
     return { success: false, summary: [], message: 'エラー: ' + e.message };
+  }
+}
+
+// ==== レコード更新（修正用） ====
+function updateRecord(timestamp, kanbanEdaban, newData) {
+  try {
+    var ss = getDataSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_DATA);
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = data.length - 1; i >= 1; i--) {
+      var rowTimestamp = Utilities.formatDate(new Date(data[i][0]), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+      if (rowTimestamp === timestamp && String(data[i][6]) === String(kanbanEdaban)) {
+        // 更新可能な項目: 社員番号, 出荷日, 出荷便, 背番号, 製品型番, eかんばん枝番, 切断仕上No.①②③
+        if (newData.employeeCode !== undefined) sheet.getRange(i + 1, 2).setValue(newData.employeeCode);
+        if (newData.shippingDate !== undefined) sheet.getRange(i + 1, 3).setValue(newData.shippingDate);
+        if (newData.shippingBin !== undefined) sheet.getRange(i + 1, 4).setValue(newData.shippingBin);
+        if (newData.sebangoNo !== undefined) sheet.getRange(i + 1, 5).setValue(newData.sebangoNo);
+        if (newData.productModel !== undefined) sheet.getRange(i + 1, 6).setValue(newData.productModel);
+        if (newData.kanbanEdaban !== undefined) sheet.getRange(i + 1, 7).setValue(newData.kanbanEdaban);
+        if (newData.setsudanNo1 !== undefined) sheet.getRange(i + 1, 8).setValue(newData.setsudanNo1);
+        if (newData.setsudanNo2 !== undefined) sheet.getRange(i + 1, 9).setValue(newData.setsudanNo2);
+        if (newData.setsudanNo3 !== undefined) sheet.getRange(i + 1, 10).setValue(newData.setsudanNo3);
+        return { success: true, message: '更新しました' };
+      }
+    }
+    return { success: false, message: '該当レコードが見つかりません' };
+  } catch (e) {
+    return { success: false, message: 'エラー: ' + e.message };
   }
 }
 

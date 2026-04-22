@@ -4,14 +4,86 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <?!= include('css') ?>
+  <style>
+    .action-btn {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 0 2px;
+    }
+    .action-btn.edit { background: #1a2a5e; color: #fff; }
+    .action-btn.delete { background: #d32f2f; color: #fff; }
+    .record-card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .record-card .main {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .record-card .meta {
+      color: #666;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .record-card .actions {
+      text-align: right;
+      margin-top: 8px;
+    }
+    .edit-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .edit-modal.active { display: flex; }
+    .edit-modal-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 400px;
+      width: 92%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .edit-modal-box h3 {
+      margin-bottom: 12px;
+      text-align: center;
+      color: #1a2a5e;
+    }
+    .edit-modal-box .form-group { margin-bottom: 10px; }
+    .edit-modal-box .form-group label { min-width: 100px; font-size: 13px; }
+    .edit-modal-box .form-group input,
+    .edit-modal-box .form-group select { font-size: 14px; padding: 8px 10px; }
+    .edit-modal-box .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .edit-modal-box .btn-row .btn { margin-bottom: 0; }
+  </style>
 </head>
 <body>
 
   <!-- ヘッダー -->
   <div class="header">
+    <div class="header-left">
+      <a href="javascript:history.back()" class="header-icon" title="前の画面に戻る">&#9664;</a>
+    </div>
     <span>リスト検索</span>
     <div class="header-right">
-      <a href="<?!= getScriptUrl() ?>" class="header-icon">&#127968;</a>
+      <a href="<?!= getScriptUrl() ?>" class="header-icon" title="ホーム">&#127968;</a>
     </div>
   </div>
 
@@ -31,7 +103,12 @@
         <option value="T4">T4</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>検索</label>
+      <input type="text" id="filterKeyword" placeholder="背番号 / 型番 / 枝番 / 切断No / 社員番号">
+    </div>
     <button class="btn btn-primary" id="btnSearch">検索</button>
+    <button class="btn btn-secondary" id="btnClearDate" style="margin-top:4px;">出荷日フィルタを解除（全期間）</button>
 
     <!-- ローディング -->
     <div class="loading" id="loadingIndicator">
@@ -43,9 +120,59 @@
     <div class="section-title mt-16">集計結果</div>
     <div id="summaryArea"></div>
 
-    <!-- 詳細テーブル -->
-    <div class="section-title mt-16">詳細データ</div>
+    <!-- 詳細リスト -->
+    <div class="section-title mt-16">詳細データ（修正・削除可）</div>
     <div id="detailArea"></div>
+  </div>
+
+  <!-- 編集モーダル -->
+  <div class="edit-modal" id="editModal">
+    <div class="edit-modal-box">
+      <h3>レコード修正</h3>
+      <div class="form-group"><label>社員番号</label><input type="text" id="edit_employeeCode"></div>
+      <div class="form-group"><label>出荷日</label><input type="date" id="edit_shippingDate"></div>
+      <div class="form-group"><label>出荷便</label>
+        <select id="edit_shippingBin">
+          <option value="T1">T1</option>
+          <option value="T2">T2</option>
+          <option value="T3">T3</option>
+          <option value="T4">T4</option>
+        </select>
+      </div>
+      <div class="form-group"><label>背番号</label><input type="text" id="edit_sebangoNo"></div>
+      <div class="form-group"><label>製品型番</label><input type="text" id="edit_productModel"></div>
+      <div class="form-group"><label>eかんばん枝番</label><input type="text" id="edit_kanbanEdaban"></div>
+      <div class="form-group"><label>切断仕上No.①</label><input type="text" id="edit_setsudanNo1"></div>
+      <div class="form-group"><label>切断仕上No.②</label><input type="text" id="edit_setsudanNo2"></div>
+      <div class="form-group"><label>切断仕上No.③</label><input type="text" id="edit_setsudanNo3"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnEditSave">保存</button>
+        <button class="btn btn-secondary" id="btnEditCancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div class="edit-modal" id="deleteModal">
+    <div class="edit-modal-box" style="max-width:320px;">
+      <h3>削除確認</h3>
+      <p id="deleteTarget" style="font-size:14px; margin-bottom:12px;"></p>
+      <p style="font-size:13px; color:#666;">このレコードを削除します。よろしいですか？</p>
+      <div class="btn-row">
+        <button class="btn btn-danger" id="btnDeleteConfirm">削除する</button>
+        <button class="btn btn-secondary" id="btnDeleteCancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通知モーダル -->
+  <div class="overlay" id="alertOverlay">
+    <div class="alert-box">
+      <div class="alert-icon" id="alertIcon"></div>
+      <div class="alert-message" id="alertMessage"></div>
+      <div class="alert-detail" id="alertDetail"></div>
+      <button class="btn btn-primary" id="btnAlertClose" style="width:auto; padding:10px 40px; margin:0 auto;">OK</button>
+    </div>
   </div>
 
   <script>
@@ -69,8 +196,40 @@
       document.getElementById('filterBin').value = params.shippingBin;
     }
 
+    // 現在のレコード一覧を保持
+    var allRecords = [];
+    var currentEditTarget = null;
+    var currentDeleteTarget = null;
+
     // 検索実行
     document.getElementById('btnSearch').addEventListener('click', doSearch);
+    document.getElementById('btnClearDate').addEventListener('click', function() {
+      document.getElementById('filterDate').value = '';
+      doSearch();
+    });
+    document.getElementById('filterKeyword').addEventListener('input', function() {
+      renderDetail({ success: true, records: filterByKeyword(allRecords) });
+    });
+
+    function filterByKeyword(records) {
+      var kw = document.getElementById('filterKeyword').value.trim().toLowerCase();
+      var filtered = !kw ? records.slice() : records.filter(function(r) {
+        return (
+          String(r.sebangoNo || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.productModel || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.kanbanEdaban || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.employeeCode || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.setsudanNo1 || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.setsudanNo2 || '').toLowerCase().indexOf(kw) >= 0 ||
+          String(r.setsudanNo3 || '').toLowerCase().indexOf(kw) >= 0
+        );
+      });
+      // 日時の新しい順にソート（タイムスタンプ降順）
+      filtered.sort(function(a, b) {
+        return String(b.timestamp || '').localeCompare(String(a.timestamp || ''));
+      });
+      return filtered;
+    }
 
     function doSearch() {
       var date = document.getElementById('filterDate').value;
@@ -80,7 +239,6 @@
       document.getElementById('summaryArea').innerHTML = '';
       document.getElementById('detailArea').innerHTML = '';
 
-      // 集計と詳細を並行取得
       var completed = 0;
       var summaryResult = null;
       var detailResult = null;
@@ -90,7 +248,8 @@
         if (completed < 2) return;
         document.getElementById('loadingIndicator').classList.remove('active');
         renderSummary(summaryResult);
-        renderDetail(detailResult);
+        allRecords = (detailResult && detailResult.records) ? detailResult.records : [];
+        renderDetail({ success: true, records: filterByKeyword(allRecords) });
       }
 
       google.script.run
@@ -130,7 +289,6 @@
         html += '</tr>';
       });
 
-      // 合計行
       html += '<tr class="total-row">';
       html += '<td colspan="2">合計</td>';
       html += '<td>' + result.totalCount + '</td>';
@@ -140,7 +298,7 @@
       area.innerHTML = html;
     }
 
-    // 詳細テーブル描画
+    // 詳細リスト描画（カード形式・修正/削除ボタン付き）
     function renderDetail(result) {
       var area = document.getElementById('detailArea');
 
@@ -149,30 +307,151 @@
         return;
       }
 
-      if (result.records.length === 0) {
-        area.innerHTML = '<div class="result-box">データがありません</div>';
+      if (!result.records || result.records.length === 0) {
+        area.innerHTML = '<div class="result-box">該当データがありません</div>';
         return;
       }
 
-      var html = '<table class="data-table">';
-      html += '<thead><tr><th>時刻</th><th>背番号</th><th>型番</th><th>枝番</th><th>切断No.</th></tr></thead>';
-      html += '<tbody>';
-
-      result.records.forEach(function(row) {
-        var time = row.timestamp.split(' ')[1] || '';
+      var html = '';
+      result.records.forEach(function(row, idx) {
         var setsudanNos = [row.setsudanNo1, row.setsudanNo2, row.setsudanNo3].filter(function(n) { return n; }).join(', ');
-        html += '<tr>';
-        html += '<td style="font-size:12px;">' + time + '</td>';
-        html += '<td>' + row.sebangoNo + '</td>';
-        html += '<td style="font-size:11px;">' + row.productModel + '</td>';
-        html += '<td>' + row.kanbanEdaban + '</td>';
-        html += '<td style="font-size:11px;">' + setsudanNos + '</td>';
-        html += '</tr>';
+        html += '<div class="record-card">';
+        html += '<div class="main">背番号 ' + escapeHtml(row.sebangoNo) + ' / ' + escapeHtml(row.productModel) + '</div>';
+        html += '<div class="meta">';
+        html += '日時: ' + escapeHtml(row.timestamp) + '<br>';
+        html += '社員: ' + escapeHtml(row.employeeCode) + ' / 出荷日: ' + escapeHtml(row.shippingDate) + ' / 便: ' + escapeHtml(row.shippingBin) + '<br>';
+        html += '枝番: ' + escapeHtml(row.kanbanEdaban) + ' / 切断No: ' + escapeHtml(setsudanNos);
+        html += '</div>';
+        html += '<div class="actions">';
+        html += '<button class="action-btn edit" data-idx="' + idx + '">修正</button>';
+        html += '<button class="action-btn delete" data-idx="' + idx + '">削除</button>';
+        html += '</div>';
+        html += '</div>';
       });
-
-      html += '</tbody></table>';
       area.innerHTML = html;
+
+      // ボタンハンドラ
+      var filtered = result.records;
+      area.querySelectorAll('.action-btn.edit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          openEditModal(filtered[parseInt(btn.dataset.idx, 10)]);
+        });
+      });
+      area.querySelectorAll('.action-btn.delete').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          openDeleteModal(filtered[parseInt(btn.dataset.idx, 10)]);
+        });
+      });
     }
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // 編集モーダル
+    function openEditModal(record) {
+      currentEditTarget = record;
+      document.getElementById('edit_employeeCode').value = record.employeeCode || '';
+      document.getElementById('edit_shippingDate').value = record.shippingDate || '';
+      document.getElementById('edit_shippingBin').value = record.shippingBin || 'T1';
+      document.getElementById('edit_sebangoNo').value = record.sebangoNo || '';
+      document.getElementById('edit_productModel').value = record.productModel || '';
+      document.getElementById('edit_kanbanEdaban').value = record.kanbanEdaban || '';
+      document.getElementById('edit_setsudanNo1').value = record.setsudanNo1 || '';
+      document.getElementById('edit_setsudanNo2').value = record.setsudanNo2 || '';
+      document.getElementById('edit_setsudanNo3').value = record.setsudanNo3 || '';
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    document.getElementById('btnEditCancel').addEventListener('click', function() {
+      document.getElementById('editModal').classList.remove('active');
+      currentEditTarget = null;
+    });
+
+    document.getElementById('btnEditSave').addEventListener('click', function() {
+      if (!currentEditTarget) return;
+      var newData = {
+        employeeCode: document.getElementById('edit_employeeCode').value,
+        shippingDate: document.getElementById('edit_shippingDate').value,
+        shippingBin: document.getElementById('edit_shippingBin').value,
+        sebangoNo: document.getElementById('edit_sebangoNo').value,
+        productModel: document.getElementById('edit_productModel').value,
+        kanbanEdaban: document.getElementById('edit_kanbanEdaban').value,
+        setsudanNo1: document.getElementById('edit_setsudanNo1').value,
+        setsudanNo2: document.getElementById('edit_setsudanNo2').value,
+        setsudanNo3: document.getElementById('edit_setsudanNo3').value
+      };
+      document.getElementById('loadingIndicator').classList.add('active');
+      google.script.run
+        .withSuccessHandler(function(result) {
+          document.getElementById('loadingIndicator').classList.remove('active');
+          document.getElementById('editModal').classList.remove('active');
+          if (result.success) {
+            showAlert('OK', '更新しました', '');
+            doSearch();
+          } else {
+            showAlert('⚠', '更新失敗', result.message);
+          }
+          currentEditTarget = null;
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('loadingIndicator').classList.remove('active');
+          showAlert('⚠', '通信エラー', err.message);
+        })
+        .updateRecord(currentEditTarget.timestamp, currentEditTarget.kanbanEdaban, newData);
+    });
+
+    // 削除モーダル
+    function openDeleteModal(record) {
+      currentDeleteTarget = record;
+      document.getElementById('deleteTarget').innerHTML =
+        '背番号: <strong>' + escapeHtml(record.sebangoNo) + '</strong> / 枝番: <strong>' + escapeHtml(record.kanbanEdaban) + '</strong><br>' +
+        '日時: ' + escapeHtml(record.timestamp);
+      document.getElementById('deleteModal').classList.add('active');
+    }
+
+    document.getElementById('btnDeleteCancel').addEventListener('click', function() {
+      document.getElementById('deleteModal').classList.remove('active');
+      currentDeleteTarget = null;
+    });
+
+    document.getElementById('btnDeleteConfirm').addEventListener('click', function() {
+      if (!currentDeleteTarget) return;
+      document.getElementById('loadingIndicator').classList.add('active');
+      google.script.run
+        .withSuccessHandler(function(result) {
+          document.getElementById('loadingIndicator').classList.remove('active');
+          document.getElementById('deleteModal').classList.remove('active');
+          if (result.success) {
+            showAlert('OK', '削除しました', '');
+            doSearch();
+          } else {
+            showAlert('⚠', '削除失敗', result.message);
+          }
+          currentDeleteTarget = null;
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('loadingIndicator').classList.remove('active');
+          showAlert('⚠', '通信エラー', err.message);
+        })
+        .deleteRecord(currentDeleteTarget.timestamp, currentDeleteTarget.kanbanEdaban);
+    });
+
+    // アラート
+    function showAlert(icon, message, detail) {
+      document.getElementById('alertIcon').textContent = icon;
+      document.getElementById('alertMessage').textContent = message;
+      document.getElementById('alertDetail').textContent = detail || '';
+      document.getElementById('alertOverlay').classList.add('active');
+    }
+    document.getElementById('btnAlertClose').addEventListener('click', function() {
+      document.getElementById('alertOverlay').classList.remove('active');
+    });
 
     // 初期検索
     doSearch();
