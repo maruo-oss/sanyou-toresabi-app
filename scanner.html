@@ -14,6 +14,19 @@
       margin-top: 8px;
       display: none;
     }
+    #cameraPreview {
+      margin-top: 12px;
+      text-align: center;
+    }
+    #cameraPreview video {
+      width: 100%;
+      max-height: 320px;
+      border-radius: 8px;
+      background: #000;
+    }
+    .mode-btn {
+      background: #2e7d32 !important;
+    }
   </style>
 </head>
 <body>
@@ -35,16 +48,9 @@
     出荷日 <strong id="dispDate">-</strong>&nbsp;
     出荷便 <strong id="dispBin">-</strong>&nbsp;
     <span id="dispStatus">選択中</span>
-    <span style="margin-left:8px; color:#ff0; font-weight:bold;">[v写真版]</span>
   </div>
 
   <div class="container">
-    <!-- 出荷かんばん 読み取り結果 -->
-    <div class="result-label">出荷かんばん</div>
-    <div class="result-box" id="resultKanban">
-      <span class="placeholder">未読み取り</span>
-    </div>
-
     <!-- 切断仕上票 読み取り結果 -->
     <div class="result-label">切断仕上票</div>
     <div class="result-box" id="resultSetsudan">
@@ -54,6 +60,12 @@
     <!-- 切断仕上票 追加分 -->
     <div id="additionalSetsudanArea"></div>
 
+    <!-- 出荷かんばん 読み取り結果 -->
+    <div class="result-label">出荷かんばん</div>
+    <div class="result-box" id="resultKanban">
+      <span class="placeholder">未読み取り</span>
+    </div>
+
     <!-- 照合結果 -->
     <div id="matchResult" class="hidden">
       <div class="result-box" id="matchResultBox">
@@ -61,14 +73,14 @@
       </div>
     </div>
 
-    <!-- eかんばん読み取りボタン -->
-    <div class="mt-16" id="kanbanScanArea">
-      <button class="btn btn-primary" id="btnScanKanban">eかんばんを読み取る</button>
+    <!-- 切断仕上票読み取りボタン（初期表示） -->
+    <div class="mt-16" id="setsudanScanArea">
+      <button class="btn btn-primary" id="btnScanSetsudan">切断仕上票を読み取る（写真）</button>
     </div>
 
-    <!-- 切断仕上票読み取りボタン（eかんばん成功後に表示） -->
-    <div class="mt-8 hidden" id="setsudanScanArea">
-      <button class="btn btn-primary" id="btnScanSetsudan">切断仕上票を読み取る</button>
+    <!-- かんばん読み取りボタン（仕上票1枚以上スキャン後に表示） -->
+    <div class="mt-8 hidden" id="kanbanScanArea">
+      <button class="btn btn-primary" id="btnScanKanban">かんばんを読み取る（写真）</button>
     </div>
 
     <!-- 次のスキャンボタン（照合完了後に表示） -->
@@ -76,8 +88,21 @@
       <button class="btn btn-primary" id="btnNextScan">次の読み取り</button>
     </div>
 
+    <!-- カメラ連続スキャンモード切替ボタン（対応環境のみ表示） -->
+    <div class="mt-8 hidden" id="streamSwitchArea">
+      <button class="btn btn-primary mode-btn" id="btnStartStream">📹 カメラで連続スキャン</button>
+    </div>
+
+    <!-- カメラプレビュー（連続スキャン中のみ表示） -->
+    <div id="cameraPreview" class="hidden">
+      <video id="qrVideo" playsinline></video>
+      <div class="mt-8">
+        <button class="btn btn-secondary" id="btnStopStream">写真モードに戻る</button>
+      </div>
+    </div>
+
     <div class="text-center mt-8" style="font-size:13px; color:#888;">
-      ※eかんばん→切断仕上票の順で読み取りしてください
+      ※切断仕上票→かんばんの順で読み取りしてください（仕上票は最大3枚）
     </div>
 
     <!-- デバッグ情報 -->
@@ -124,24 +149,22 @@
     document.getElementById('dispBin').textContent = shippingBin;
 
     // ==== スキャン状態管理 ====
+    var MAX_SETSUDAN = 3;
     var scanState = {
-      phase: 'idle',       // idle → kanban → setsudan → done
+      phase: 'idle',       // idle → setsudan → kanban → done
       kanbanData: null,
-      setsudanList: [],
-      requiredCount: 1,
-      scanCount: 0
+      setsudanList: []
     };
 
     // 現在のコールバック
     var currentScanCallback = null;
 
-    // ==== QRコード解析: eかんばん ====
+    // ==== QRコード解析: かんばん ====
     function parseKanbanQR(raw) {
       var trimmed = raw.trim();
       if (trimmed.length < 19) return null;
 
       var type = trimmed.substring(0, 1);
-      var count = parseInt(trimmed.substring(1, 3), 10);
       var productModel = trimmed.substring(3, 19).trim();
 
       var parts = trimmed.split(/\s+/).filter(function(s) { return s.length > 0; });
@@ -168,7 +191,6 @@
       return {
         raw: raw,
         type: type,
-        requiredCount: isNaN(count) ? 1 : count,
         productModel: productModel,
         sebangoNo: sebangoNo,
         edaban: edaban,
@@ -350,10 +372,9 @@
 
     // ==== UI状態管理 ====
     function resetUI() {
-      scanState.phase = 'kanban';
+      scanState.phase = 'setsudan';
       scanState.kanbanData = null;
       scanState.setsudanList = [];
-      scanState.scanCount = 0;
 
       document.getElementById('resultKanban').innerHTML = '<span class="placeholder">未読み取り</span>';
       document.getElementById('resultKanban').className = 'result-box';
@@ -362,32 +383,63 @@
       document.getElementById('additionalSetsudanArea').innerHTML = '';
       document.getElementById('matchResult').classList.add('hidden');
       document.getElementById('nextScanArea').classList.add('hidden');
-      document.getElementById('setsudanScanArea').classList.add('hidden');
-      document.getElementById('kanbanScanArea').classList.remove('hidden');
+      // 初期表示は切断仕上票ボタンのみ
+      document.getElementById('setsudanScanArea').classList.remove('hidden');
+      document.getElementById('kanbanScanArea').classList.add('hidden');
+      document.getElementById('btnScanSetsudan').textContent = '切断仕上票を読み取る（写真）';
       document.getElementById('dispStatus').textContent = '選択中';
       document.getElementById('debugArea').style.display = 'none';
     }
 
-    // ==== eかんばん読み取りボタン ====
-    document.getElementById('btnScanKanban').addEventListener('click', function() {
-      resetUI();
-      document.getElementById('dispStatus').textContent = 'eかんばん読み取り中';
-      openCamera(onKanbanScanned);
-    });
+    // 仕上票枚数に応じてスキャンボタンの表示・ラベルを更新
+    function updateScanButtons() {
+      var setsudanArea = document.getElementById('setsudanScanArea');
+      var kanbanArea = document.getElementById('kanbanScanArea');
+      var btnSetsudan = document.getElementById('btnScanSetsudan');
+      var count = scanState.setsudanList.length;
 
-    // ==== 切断仕上票読み取りボタン ====
+      if (count === 0) {
+        btnSetsudan.textContent = '切断仕上票を読み取る（写真）';
+        setsudanArea.classList.remove('hidden');
+        kanbanArea.classList.add('hidden');
+      } else if (count < MAX_SETSUDAN) {
+        btnSetsudan.textContent = 'もう1枚 切断仕上票を読み取る（写真）';
+        setsudanArea.classList.remove('hidden');
+        kanbanArea.classList.remove('hidden');
+      } else {
+        // 最大枚数到達：仕上票ボタンを隠してかんばん読み取りへ
+        setsudanArea.classList.add('hidden');
+        kanbanArea.classList.remove('hidden');
+      }
+    }
+
+    // ==== 切断仕上票読み取りボタン（起点） ====
     document.getElementById('btnScanSetsudan').addEventListener('click', function() {
-      var remaining = scanState.requiredCount - scanState.scanCount;
-      document.getElementById('dispStatus').textContent = '切断仕上票読み取り中 (' + (scanState.scanCount + 1) + '/' + scanState.requiredCount + ')';
+      // 1枚目を撮る直前にUIを初期化（連続サイクル時の取りこぼし防止）
+      if (scanState.setsudanList.length === 0) {
+        resetUI();
+        scanState.phase = 'setsudan';
+      }
+      document.getElementById('dispStatus').textContent = '切断仕上票読み取り中 (' + (scanState.setsudanList.length + 1) + '枚目)';
       openCamera(onSetsudanScanned);
     });
 
-    // ==== eかんばん読み取り完了 ====
+    // ==== かんばん読み取りボタン ====
+    document.getElementById('btnScanKanban').addEventListener('click', function() {
+      if (scanState.setsudanList.length === 0) {
+        showAlert('⚠', '切断仕上票が未読', '先に切断仕上票を読み取ってください。');
+        return;
+      }
+      document.getElementById('dispStatus').textContent = 'かんばん読み取り中';
+      openCamera(onKanbanScanned);
+    });
+
+    // ==== かんばん読み取り完了 ====
     function onKanbanScanned(rawData) {
       // 切断仕上票の誤読チェック
       var setsudanCheck = parseSetsudanQR(rawData);
       if (setsudanCheck && setsudanCheck.productModel) {
-        showAlert('\u26A0', 'eかんばんではありません', '切断仕上票のQRコードが読み取られました。\neかんばんのQRコードを撮影してください。');
+        showAlert('\u26A0', 'かんばんではありません', '切断仕上票のQRコードが読み取られました。\nかんばんのQRコードを撮影してください。');
         return;
       }
 
@@ -395,45 +447,53 @@
       if (!data || !data.productModel) {
         document.getElementById('resultKanban').innerHTML = 'QRコードの解析に失敗しました';
         document.getElementById('resultKanban').className = 'result-box error';
-        showAlert('\u26A0', 'eかんばんを認識できません', '正しいeかんばんのQRコードを撮影してください');
+        showAlert('\u26A0', 'かんばんを認識できません', '正しいかんばんのQRコードを撮影してください');
+        return;
+      }
+
+      if (scanState.setsudanList.length === 0) {
+        showAlert('⚠', '切断仕上票が未読', '先に切断仕上票を読み取ってください。');
         return;
       }
 
       scanState.kanbanData = data;
-      scanState.requiredCount = data.requiredCount || 1;
+      scanState.phase = 'kanban';
 
       // QR生データをデバッグ表示
-      showDebug(['[eかんばん QR生データ]', rawData]);
+      showDebug(['[かんばん QR生データ]', rawData]);
 
       document.getElementById('resultKanban').innerHTML =
         '<strong>' + data.productModel + '</strong><br>' +
-        '<small>背番号: ' + data.sebangoNo + ' / 枝番: ' + data.edaban + ' / 個数: ' + data.requiredCount + ' / 収容数: ' + data.shuyousu + '</small>';
+        '<small>背番号: ' + data.sebangoNo + ' / 枝番: ' + data.edaban + ' / 収容数: ' + data.shuyousu + '</small>';
       document.getElementById('resultKanban').className = 'result-box success';
 
-      // eかんばんボタンを隠し、切断仕上票ボタンを表示
-      scanState.phase = 'setsudan';
+      // スキャンボタンを隠して照合へ
+      document.getElementById('setsudanScanArea').classList.add('hidden');
       document.getElementById('kanbanScanArea').classList.add('hidden');
-      document.getElementById('setsudanScanArea').classList.remove('hidden');
-      document.getElementById('resultSetsudan').innerHTML = '<span class="placeholder">ボタンを押して撮影</span>';
-      document.getElementById('dispStatus').textContent = 'eかんばんOK → 切断仕上票を読み取ってください';
+      performMatching();
     }
 
     // ==== 切断仕上票読み取り完了 ====
     function onSetsudanScanned(rawData) {
-      // eかんばんの誤読チェック（切断仕上票として解析できず、先頭2-3文字目が数値ならeかんばんの可能性）
-      var countStr = rawData.trim().substring(1, 3);
-      if (!isNaN(parseInt(countStr, 10)) && !parseSetsudanQR(rawData)) {
-        showAlert('\u26A0', '切断仕上票ではありません', 'eかんばんのQRコードが読み取られました。\n切断仕上票のQRコードを撮影してください。');
+      // 上限チェック
+      if (scanState.setsudanList.length >= MAX_SETSUDAN) {
+        showAlert('\u26A0', '上限到達', '切断仕上票は最大' + MAX_SETSUDAN + '枚までです。\nかんばんを読み取ってください。');
         return;
       }
 
       var data = parseSetsudanQR(rawData);
+      // 仕上票として解析できない場合：かんばんの誤読をチェック
       if (!data || !data.productModel) {
+        var kanbanCheck = parseKanbanQR(rawData);
+        if (kanbanCheck && kanbanCheck.productModel) {
+          showAlert('\u26A0', '切断仕上票ではありません', 'かんばんのQRコードが読み取られました。\n切断仕上票のQRコードを撮影してください。');
+          return;
+        }
         showAlert('\u26A0', '切断仕上票を認識できません', '正しい切断仕上票のQRコードを撮影してください');
         return;
       }
 
-      // 事前重複チェック（既存の切断仕上Noと同じなら無効にし、再スキャンを促す）
+      // 事前重複チェック
       var newNum = parseInt(data.setsudanNo, 10);
       for (var k = 0; k < scanState.setsudanList.length; k++) {
         if (parseInt(scanState.setsudanList[k].setsudanNo, 10) === newNum) {
@@ -443,21 +503,19 @@
         }
       }
 
-      // QR生データをデバッグ表示
-      showDebug(['[切断仕上票 QR生データ ' + (scanState.scanCount + 1) + '枚目]', rawData]);
+      var scanIndex = scanState.setsudanList.length + 1;
+      showDebug(['[切断仕上票 QR生データ ' + scanIndex + '枚目]', rawData]);
 
-      scanState.scanCount++;
       scanState.setsudanList.push(data);
 
-      // 結果表示
       var targetEl;
-      if (scanState.scanCount === 1) {
+      if (scanIndex === 1) {
         targetEl = document.getElementById('resultSetsudan');
       } else {
         var additionalDiv = document.createElement('div');
-        additionalDiv.innerHTML = '<div class="result-label">切断仕上票 ' + scanState.scanCount + '枚目</div><div class="result-box" id="resultSetsudan' + scanState.scanCount + '"></div>';
+        additionalDiv.innerHTML = '<div class="result-label">切断仕上票 ' + scanIndex + '枚目</div><div class="result-box" id="resultSetsudan' + scanIndex + '"></div>';
         document.getElementById('additionalSetsudanArea').appendChild(additionalDiv);
-        targetEl = document.getElementById('resultSetsudan' + scanState.scanCount);
+        targetEl = document.getElementById('resultSetsudan' + scanIndex);
       }
 
       targetEl.innerHTML =
@@ -465,13 +523,15 @@
         '<small>切断NO: ' + data.setsudanNo + ' / 仕上NO: ' + data.shiageNo + ' / 本数: ' + data.honsu + '</small>';
       targetEl.className = 'result-box success';
 
-      // 必要枚数に達したら照合、未達なら次の切断仕上票スキャンへ
-      if (scanState.scanCount >= scanState.requiredCount) {
-        document.getElementById('setsudanScanArea').classList.add('hidden');
-        performMatching();
+      if (!isStreamMode) {
+        updateScanButtons();
+      }
+
+      var n = scanState.setsudanList.length;
+      if (n >= MAX_SETSUDAN) {
+        document.getElementById('dispStatus').textContent = n + '枚 読み取り済み → かんばんを読み取ってください';
       } else {
-        document.getElementById('dispStatus').textContent = '切断仕上票 ' + scanState.scanCount + '/' + scanState.requiredCount + ' 読み取り済み → 次の切断仕上票を読み取ってください';
-        document.getElementById('setsudanScanArea').classList.remove('hidden');
+        document.getElementById('dispStatus').textContent = n + '枚 読み取り済み → 追加 or かんばんを読み取り';
       }
     }
 
@@ -492,26 +552,24 @@
       var matchResultText = document.getElementById('matchResultText');
       matchResultEl.classList.remove('hidden');
 
-      // 収容数と本数の一致チェック（全ての切断仕上票の本数が収容数と一致する必要あり）
+      // 収容数と本数合計の一致チェック（仕上票の本数を合算してかんばんの収容数と比較）
       var shuyousu = scanState.kanbanData.shuyousu;
-      var quantityMismatch = false;
-      var mismatchDetail = '';
-      if (shuyousu > 0 && allMatch) {
-        for (var q = 0; q < scanState.setsudanList.length; q++) {
-          var h = scanState.setsudanList[q].honsu;
-          if (h > 0 && h !== shuyousu) {
-            quantityMismatch = true;
-            mismatchDetail = '収容数: ' + shuyousu + ' / 本数: ' + h + '（切断仕上票 ' + (q + 1) + '枚目）';
-            break;
-          }
-        }
+      var totalHonsu = 0;
+      var hasHonsuData = false;
+      for (var q = 0; q < scanState.setsudanList.length; q++) {
+        var h = scanState.setsudanList[q].honsu;
+        if (h > 0) { hasHonsuData = true; }
+        totalHonsu += (h || 0);
       }
+      var quantityMismatch = (allMatch && shuyousu > 0 && hasHonsuData && totalHonsu !== shuyousu);
+      var mismatchDetail = '収容数: ' + shuyousu + ' / 本数合計: ' + totalHonsu +
+        ' (' + scanState.setsudanList.map(function(s){ return s.honsu; }).join(' + ') + ')';
 
       if (quantityMismatch) {
         matchResultBox.className = 'result-box error';
         matchResultText.innerHTML = '<strong style="font-size:18px;">❌ 数量不一致</strong><br>' + mismatchDetail;
         document.getElementById('dispStatus').textContent = '数量不一致エラー';
-        showAlert('❌', '数量不一致', '収容数と本数が一致しません。\n' + mismatchDetail);
+        showAlert('❌', '数量不一致', '収容数と本数合計が一致しません。\n' + mismatchDetail);
         document.getElementById('nextScanArea').classList.remove('hidden');
         scanState.phase = 'idle';
         return;
@@ -525,11 +583,11 @@
       } else {
         matchResultBox.className = 'result-box error';
         matchResultText.innerHTML = '<strong style="font-size:18px;">\u274C 照合NG</strong><br>' +
-          'eかんばん: ' + kanbanModel + '<br>' +
+          'かんばん: ' + kanbanModel + '<br>' +
           '切断仕上票: ' + scanState.setsudanList.map(function(s) { return s.productModel; }).join(', ');
         document.getElementById('dispStatus').textContent = '照合NG';
 
-        showAlert('\u274C', '照合NGです！', 'eかんばんと切断仕上票の製品型番が一致しません。\neかんばん: ' + kanbanModel);
+        showAlert('\u274C', '照合NGです！', 'かんばんと切断仕上票の製品型番が一致しません。\nかんばん: ' + kanbanModel);
 
         document.getElementById('nextScanArea').classList.remove('hidden');
         scanState.phase = 'idle';
@@ -580,9 +638,154 @@
 
     // ==== 次のスキャン（照合完了後にリセットして最初から） ====
     document.getElementById('btnNextScan').addEventListener('click', function() {
-      resetUI();
-      document.getElementById('dispStatus').textContent = 'eかんばん読み取り中';
-      openCamera(onKanbanScanned);
+      if (isStreamMode) {
+        // ストリーミングモード中：状態リセットしてカメラはそのまま継続
+        resetStateForNewCycle();
+        streamLastScannedData = null;
+        document.getElementById('dispStatus').textContent = '切断仕上票をカメラに映してください';
+      } else {
+        // 写真モード：従来動作
+        resetUI();
+        document.getElementById('dispStatus').textContent = '選択中';
+      }
+    });
+
+    // ==== ハイブリッド: カメラ連続スキャンモード ====
+    var qrScanner = null;
+    var isStreamMode = false;
+    var streamPaused = false;
+    var streamLastScannedData = null;
+    var streamLastScanTime = 0;
+    var videoEl = document.getElementById('qrVideo');
+
+    // 環境がカメラストリーミング対応か判定
+    function checkStreamingSupport() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !navigator.mediaDevices.enumerateDevices) {
+        return Promise.resolve(false);
+      }
+      return navigator.mediaDevices.enumerateDevices()
+        .then(function(devices) {
+          var hasVideo = devices.some(function(d) { return d.kind === 'videoinput'; });
+          return hasVideo;
+        })
+        .catch(function() { return false; });
+    }
+
+    // ページ読込時に対応判定し、対応ならストリームボタン表示
+    checkStreamingSupport().then(function(supported) {
+      if (supported) {
+        document.getElementById('streamSwitchArea').classList.remove('hidden');
+      }
+    });
+
+    // 状態だけリセット（カメラは止めない）
+    function resetStateForNewCycle() {
+      scanState.phase = 'setsudan';
+      scanState.kanbanData = null;
+      scanState.setsudanList = [];
+
+      document.getElementById('resultKanban').innerHTML = '<span class="placeholder">未読み取り</span>';
+      document.getElementById('resultKanban').className = 'result-box';
+      document.getElementById('resultSetsudan').innerHTML = '<span class="placeholder">未読み取り</span>';
+      document.getElementById('resultSetsudan').className = 'result-box';
+      document.getElementById('additionalSetsudanArea').innerHTML = '';
+      document.getElementById('matchResult').classList.add('hidden');
+      document.getElementById('nextScanArea').classList.add('hidden');
+    }
+
+    // ストリーミングスキャン開始
+    function startAutoScan() {
+      isStreamMode = true;
+      // UI切替：写真モードのボタンを隠し、カメラプレビュー表示
+      document.getElementById('kanbanScanArea').classList.add('hidden');
+      document.getElementById('setsudanScanArea').classList.add('hidden');
+      document.getElementById('streamSwitchArea').classList.add('hidden');
+      document.getElementById('cameraPreview').classList.remove('hidden');
+
+      resetStateForNewCycle();
+      document.getElementById('dispStatus').textContent = '切断仕上票をカメラに映してください';
+
+      if (qrScanner) {
+        qrScanner.start().catch(handleStreamStartError);
+        return;
+      }
+
+      qrScanner = new QrScanner(videoEl, function(result) {
+        handleStreamScanResult(result.data);
+      }, {
+        preferredCamera: 'environment',
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        returnDetailedScanResult: true,
+        maxScansPerSecond: 3
+      });
+
+      qrScanner.start().catch(handleStreamStartError);
+    }
+
+    function handleStreamStartError(err) {
+      var errMsg = (err && err.message) ? err.message : String(err);
+      showDebug(['カメラ起動失敗: ' + errMsg]);
+      // フォールバック：写真モードに戻す
+      stopStream();
+      showAlert('⚠', 'カメラ起動失敗',
+        'カメラを起動できませんでした。写真モードで読み取ってください。\n' + errMsg);
+    }
+
+    // ストリーミング停止 → 写真モードに戻る
+    function stopStream() {
+      isStreamMode = false;
+      if (qrScanner) {
+        try { qrScanner.stop(); } catch (e) {}
+      }
+      document.getElementById('cameraPreview').classList.add('hidden');
+      // UI を写真モードに戻す（仕上票を起点に）
+      document.getElementById('setsudanScanArea').classList.remove('hidden');
+      document.getElementById('kanbanScanArea').classList.add('hidden');
+      document.getElementById('streamSwitchArea').classList.remove('hidden');
+      document.getElementById('btnScanSetsudan').textContent = '切断仕上票を読み取る（写真）';
+      document.getElementById('dispStatus').textContent = '選択中';
+      resetStateForNewCycle();
+    }
+
+    // ストリーミング検出時のルーティング
+    function handleStreamScanResult(rawData) {
+      var now = Date.now();
+      // 同じQRを3秒以内に再検出した場合はスキップ
+      if (rawData === streamLastScannedData && (now - streamLastScanTime) < 3000) return;
+      if (streamPaused) return;
+      // アラート表示中はスキップ
+      if (document.getElementById('alertOverlay').classList.contains('active')) return;
+
+      streamLastScannedData = rawData;
+      streamLastScanTime = now;
+      streamPaused = true;
+
+      if (scanState.phase === 'idle') {
+        resetStateForNewCycle();
+      }
+
+      // QR種別を自動判別してルーティング
+      var setsudanCheck = parseSetsudanQR(rawData);
+      if (setsudanCheck && setsudanCheck.productModel) {
+        onSetsudanScanned(rawData);
+      } else {
+        // 仕上票として読めない → かんばんとして扱う
+        onKanbanScanned(rawData);
+      }
+
+      setTimeout(function() { streamPaused = false; }, 1500);
+    }
+
+    // ボタンハンドラ
+    document.getElementById('btnStartStream').addEventListener('click', startAutoScan);
+    document.getElementById('btnStopStream').addEventListener('click', stopStream);
+
+    // ページ離脱時にカメラ停止
+    window.addEventListener('beforeunload', function() {
+      if (qrScanner) {
+        try { qrScanner.destroy(); } catch (e) {}
+      }
     });
   </script>
 
